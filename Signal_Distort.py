@@ -7,7 +7,7 @@ from IPython.core.pylabtools import figsize
 import seaborn as sns
 sns.set_style("white")
 import matplotlib.cm as cm     # Color map
-from utilities.wav_utility import pcm2float
+from StimResponse.wav_utility import pcm2float
  
 
 class  Signal_Distort:   
@@ -33,7 +33,14 @@ class  Signal_Distort:
         self.E_e = 80    # (mV)
 
     #---- Lukashkin signal distortion methods ------------------------
-    def boltz(self, x, x1_set = -0.2):  # Boltzman function from (Frank and Kossell, 1996).
+    def boltz(self, x, x1_set = -0.2):  
+        """ Apply Boltzman function to signal from (Frank and Kossell, 1996).
+        
+        :param x: Signal
+        :type x: numpy arrray
+        :param x1_set: Offset from center of Boltzman function.
+        :type x1_set: int
+        """
         x1= x1_set #-0.2 #-0.06 
         x2= x1
         a1 = 12.8
@@ -41,6 +48,13 @@ class  Signal_Distort:
         return 1./( 1+np.exp( a2*(x2-x) ) * ( 1+np.exp( a1*(x1-x) ) ) )    
     
     def Lukashkin( self, stim, xs = 26):
+        """ Apply Lukashkin function to signal from (Lukashkin, 1998).
+        
+        :param stim: Signal
+        :type stim: numpy arrray
+        :param xs: Hair cell offset.
+        :type xs: int
+        """
         self.xs = xs     # (nm)
         dur = len(stim)
         y = np.zeros(dur)
@@ -51,26 +65,49 @@ class  Signal_Distort:
         return y
 
     def Vi( self, x):
-    #  basolateral membrane voltage, Eq (4).
+        """ Basolateral membrane voltage, Eq (4) (Lukashkin, 1998).
+        	Helper function for self.Lukashkin()
+        :param stim: Signal
+        :type stim: numpy arrray
+        """
         v = (self.E_e + self.E_b)/(1+self.R_a(x)/self.R_b) - self.E_b; 
         return v
 
     def R_a( self, y):
-    #  transducer resistance.    
+        """ Transducer resistance (Lukashkin, 1998).
+        	Helper function for self.Lukashkin()
+        :param y: Signal
+        :type y: numpy arrray
+        """
         Ra = self.R_c + (1 + np.exp(self.a2*(self.x2-self.xs-y))*(1+np.exp(self.a1*(self.x1-self.xs-y))));
         return Ra 
     
     def G_tr( self, y):
-    #  transducer conductance, Eq1, [Lukashkin98]. 
+        """ Transducer conductance, Eq1 (Lukashkin, 1998).
+        	Helper function for self.Lukashkin()
+        :param y: Signal
+        :type y: numpy arrray
+        """
         G_tr_max = 7  #(nS)
         G_tr = G_tr_max / (1 + np.exp(self.a2*(self.x2-y))*(1+np.exp(self.a1*(self.x1-y))));
         return G_tr 
     
     #---- Signal generation methods ------------------------
     def Stim_2Tone( self, omega_1 = 70000, A_1 = 30, omega_2 = 50000, A_2 = 30, tspan = 0.1 ):
-    #  Simulate a tone pair.    
-        #Fs = 44100     # sample rate: 44.1 kHz, standard wav file sample rate
-        #Fs = 333000     # sample rate: 333 kHz, standard Batlab sample rate
+        """ Simulate a tone pair.
+        	Fs = 44100     # sample rate: 44.1 kHz, standard wav file sample rate
+        	Fs = 333000     # sample rate: 333 kHz, standard Batlab sample rate
+        :param omega_1: Frequency of sinusoidal 1
+        :type omega_1: int
+        :param A_1: Amplitude of sinusoidal 1
+        :type A_1: int
+        :param omega_2: Frequency of sinusoidal 2
+        :type omega_2: int
+        :param A_2: Amplitude of sinusoidal 2
+        :type A_2: int
+        :param tspan: duration of signal
+        :type tspan: float
+        """
         Fs = self.Fs
         dur = int(tspan*Fs)
         stim = np.zeros(dur)
@@ -78,7 +115,11 @@ class  Signal_Distort:
             stim[simTime] = self.ampl(simTime/Fs, A_1)*np.cos(2*np.pi*omega_1*simTime/Fs)  + self.ampl(simTime/Fs, A_2)*np.cos(2*np.pi*omega_2*simTime/Fs);
         return stim/np.max(stim), Fs 
 
-    def ampl( self, t, A):     #  Helper function for Stim_2Tone.   
+    def ampl( self, t, A):      
+        """ Helper function for Stim_2Tone 
+        :param y: Signal
+        :type y: numpy arrray
+        """
         if t < 5: amp = A
         elif (t >= 5) & (t<10): amp = 0
         else: amp = 0
@@ -86,6 +127,22 @@ class  Signal_Distort:
     
     #---- Other signal manipulation methods ------------------------
     def ShiftExp_2tone(t, f1, f2, overlap, shift, tau): # overlap is in percent, negative means gap
+        """ Shift 2 tones relative to each other and reduce amplitude by exponential decay
+        :param t: time base
+        :type t: numpy arrray
+        :param f1: Frequency of sinusoidal 1
+        :type f1: int
+        :param f2: Frequency of sinusoidal 2
+        :type f2: int
+        :param f2: Frequency of sinusoidal 2
+        :type f2: int
+        :param overlap: Duration of overlap of sinusoids
+        :type overlap: int
+        :param shift: Duration of shift of second sinusoids
+        :type shift: int
+        :param overlap: Exponential decay constant
+        :type overlap: float
+        """
         A1 = 0.5*np.exp(-shift/tau)
         A2 = 0.5*np.exp(-shift/tau)
         T = len(t)
@@ -99,6 +156,16 @@ class  Signal_Distort:
         return s1 + s2 
     
     def signalReverb(self, sig, shift, tau, echos): # units for shift (!=0) and tau are ms
+        """ Reverberation (echo) of signal with exponential decay
+        :param sig: Signal
+        :type sig: numpy arrray
+        :param shift: Delay between reverberations
+        :type shift: float
+        :param tau: Exponential decay constant
+        :type tau: float
+        :param echos: Number of reverberations (~5 is usually sufficient)
+        :type echos: int
+        """
         sig2 = sig
         for n in range(echos):
             A2 = np.exp(-(n+1)*shift/tau)
@@ -108,7 +175,16 @@ class  Signal_Distort:
         return sig2 
 
     def BandPassFilter(self, signal, lowCut=8000.0, highCut=120000.0, set_numtaps=71):
-        # Create a FIR filter and apply it to signal.
+        """ Create a FIR filter and apply it to signal.
+        :param signal: Signal
+        :type signal: numpy arrray
+        :param lowCut: High-pass cutoff frequency of the filter
+        :type lowCut: float
+        :param highCut: Low-pass cutoff frequency of the filter decay constant
+        :type highCut: float
+        :param set_numtaps: Number of FIR filter taps
+        :type set_numtaps: int        sig2 = sig
+        """
         nyq_rate = self.Fs / 2.0  # The Nyquist rate of the signal.
         cutoff_hz = np.array([lowCut, highCut]) # The cutoff frequency of the filter:
         numtaps = set_numtaps # Length of the filter (number of coefficients, i.e. the filter order + 1)
@@ -118,6 +194,18 @@ class  Signal_Distort:
         return lfilter(fir_coeff, 1.0, signal)
     
     def DistortionProducts(self, signal, reverbShift=1., reverbTau=1., echos=5, distortFactor=4.):
+        """ Generate distortions to reverberated signal.
+        :param signal: Signal
+        :type signal: numpy arrray
+        :param reverbShift: Delay between reverberations
+        :type reverbShift: float
+        :param reverbTau: Exponential decay constant
+        :type reverbTau: float
+        :param echos:  Number of reverberations (~5 is usually sufficient)
+        :type echos: int
+        :param distortFactor: Inverse scaling factor for signal in Boltzman filter (large value is small distortion)
+        :type distortFactor: float
+        """
         shift = reverbShift
         tau = reverbTau
         N = echos
@@ -137,6 +225,18 @@ class  Signal_Distort:
         return sigReverbD_F
     
     def PlotSpectrogram(self, signal, figsize=(9,5), title='Spectrogram', specThreshold=-110, zmax=None):
+        """ Plot spectrogram of signal.
+        :param signal: Signal
+        :type signal: numpy arrray
+        :param figsize: Size of figure
+        :type figsize: 2-element tuple
+        :param title: Title of figure
+        :type title: str
+        :param specThreshold:  Minimum value for color scale
+        :type specThreshold: float
+        :param zmax: Maximum value for color scale
+        :type zmax: float
+        """
         fig = plt.figure()
         fig.set_size_inches(figsize[0],figsize[1])
         gs = gridspec.GridSpec(2, 2, width_ratios=[1,8], height_ratios=[4,1])
@@ -178,24 +278,28 @@ class  Signal_Distort:
         return fig #, Pxx, freqs
         
 
-    def PlotSpectResponse(self, vocalName, miceVocalSpikesDict, unit):
+    def PlotSpectResponse(self, vocalName, vocalSpikes):
+		""" Plot spectrogram of signal with spike response.
+		:param vocalName: Name of stimulus file
+		:type vocalName: str (.call1 format)
+		:param vocalSpikes: Data structure with spikes
+		:type vocalSpikes: pandas DataFrame
+		"""
 		fileName = self.vocalDir + vocalName
 		vocalSignal = np.fromfile(fileName, dtype='int16')
 		maxAbs_pcm = max(abs(vocalSignal))  # Capture largest integer in the original .call1 file (int16)
 		nVocalSignal = pcm2float(vocalSignal, np.float32)
 		sigReverbD_F = nVocalSignal
 		t = np.linspace(0, len(sigReverbD_F)/float(self.Fs), len(sigReverbD_F))
-		f, axarr = plt.subplots(2, 1, figsize=(10,6))
-		# print self.Fs
+		f, axarr = plt.subplots(2, 1, figsize=(10,6))		# print self.Fs
 		Pxx, freqs, bins, im = axarr[0].specgram(sigReverbD_F, NFFT=2**8, Fs=self.Fs, noverlap=10, vmin=-105, cmap = cm.CMRmap)
 		axarr[0].set_title(vocalName)
 		axarr[0].set_xlabel('Time (s)')
 		axarr[0].set_ylabel('Frequency (Hz)')
 		axarr[0].set_ylim((0,120000))
 		axarr[0].set_xlim((0,len(sigReverbD_F)/float(self.Fs)+0.06))  
-# 		v  = vocalName[:-14]+vocalName[-6:]
 		v  = vocalName
-		axarr[1] = miceVocalSpikesDict[unit][v].hist(bins=125)
+		axarr[1] = vocalSpikes[v].hist(bins=125)
 		plt.xlabel('Time (ms)')
 		plt.ylabel('Number of spikes')
 		plt.xlim(0,len(sigReverbD_F)/float(self.Fs)*1000+60)
