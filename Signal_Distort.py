@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from scipy.signal import lfilter, firwin, resample, decimate
 from IPython.core.pylabtools import figsize
-import seaborn as sns
-sns.set_style("white")
 import matplotlib.cm as cm     # Color map
 from StimResponse.wav_utility import pcm2float
+import matplotlib as mpl
  
 
 class  Signal_Distort:   
@@ -22,15 +21,15 @@ class  Signal_Distort:
     def __init__( self, initVocalDir, sampleRate = 333000):
     	self.vocalDir = initVocalDir
         self.Fs = sampleRate # (/s)
-        self.xs = 26     # (nm)
-        self.a1 = 0.065  # (1/nm)
-        self.a2 = 0.016  # (1/nm)
-        self.x1 = 24     # (nm)
-        self.x2 = 41     # (nm)
-        self.R_b = 50    # (MOhm)
-        self.R_c = 500   # (MOhm)
-        self.E_b = 90    # (mV)
-        self.E_e = 80    # (mV)
+        # Make plots prettier
+        mpl.rcParams['axes.facecolor'] = "white"
+        mpl.rcParams['axes.edgecolor'] = ".15"    # dark_gray from seaborn
+        mpl.rcParams['axes.linewidth'] = 1.25
+        mpl.rcParams['grid.color'] = ".8"         # light_gray from seaborn
+        mpl.rcParams['axes.grid'] = False
+        mpl.rcParams['axes.labelsize'] = "large"
+        mpl.rcParams['xtick.labelsize'] = "large"
+        mpl.rcParams['ytick.labelsize'] = "large"
 
     #---- Lukashkin signal distortion methods ------------------------
     def boltz(self, x, x1_set = -0.2):  
@@ -55,6 +54,16 @@ class  Signal_Distort:
         :param xs: Hair cell offset.
         :type xs: int
         """
+        # Set Lukashkin parameters
+        self.xs = 26     # (nm)
+        self.a1 = 0.065  # (1/nm)
+        self.a2 = 0.016  # (1/nm)
+        self.x1 = 24     # (nm)
+        self.x2 = 41     # (nm)
+        self.R_b = 50    # (MOhm)
+        self.R_c = 500   # (MOhm)
+        self.E_b = 90    # (mV)
+        self.E_e = 80    # (mV)
         self.xs = xs     # (nm)
         dur = len(stim)
         y = np.zeros(dur)
