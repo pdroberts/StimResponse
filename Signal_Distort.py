@@ -1,4 +1,8 @@
+#!/usr/bin/python
 #09/11/2014, update 05/18/2015
+# Signal_Distort.py by Patrick D Roberts (2014-2015)
+# Apply an cochlea-like distortion to an ultra high frequency signal
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -39,6 +43,7 @@ class  Signal_Distort:
         :type x: numpy arrray
         :param x1_set: Offset from center of Boltzman function.
         :type x1_set: int
+        :returns: numpy arrray with distorted signal
         """
         x1= x1_set #-0.2 #-0.06 
         x2= x1
@@ -53,6 +58,7 @@ class  Signal_Distort:
         :type stim: numpy arrray
         :param xs: Hair cell offset.
         :type xs: int
+        :returns: numpy arrray with distorted signal
         """
         # Set Lukashkin parameters
         self.xs = 26     # (nm)
@@ -78,6 +84,7 @@ class  Signal_Distort:
         	Helper function for self.Lukashkin()
         :param stim: Signal
         :type stim: numpy arrray
+        :returns: numpy arrray
         """
         v = (self.E_e + self.E_b)/(1+self.R_a(x)/self.R_b) - self.E_b; 
         return v
@@ -87,6 +94,7 @@ class  Signal_Distort:
         	Helper function for self.Lukashkin()
         :param y: Signal
         :type y: numpy arrray
+        :returns: numpy arrray 
         """
         Ra = self.R_c + (1 + np.exp(self.a2*(self.x2-self.xs-y))*(1+np.exp(self.a1*(self.x1-self.xs-y))));
         return Ra 
@@ -96,6 +104,7 @@ class  Signal_Distort:
         	Helper function for self.Lukashkin()
         :param y: Signal
         :type y: numpy arrray
+        :returns: numpy arrray 
         """
         G_tr_max = 7  #(nS)
         G_tr = G_tr_max / (1 + np.exp(self.a2*(self.x2-y))*(1+np.exp(self.a1*(self.x1-y))));
@@ -116,6 +125,7 @@ class  Signal_Distort:
         :type A_2: int
         :param tspan: duration of signal
         :type tspan: float
+        :returns: numpy arrray containing signal
         """
         Fs = self.Fs
         dur = int(tspan*Fs)
@@ -128,6 +138,7 @@ class  Signal_Distort:
         """ Helper function for Stim_2Tone 
         :param y: Signal
         :type y: numpy arrray
+        :returns: float with amplitude
         """
         if t < 5: amp = A
         elif (t >= 5) & (t<10): amp = 0
@@ -151,6 +162,7 @@ class  Signal_Distort:
         :type shift: int
         :param overlap: Exponential decay constant
         :type overlap: float
+        :returns: numpy array with sum of overlapping signals
         """
         A1 = 0.5*np.exp(-shift/tau)
         A2 = 0.5*np.exp(-shift/tau)
@@ -174,6 +186,7 @@ class  Signal_Distort:
         :type tau: float
         :param echos: Number of reverberations (~5 is usually sufficient)
         :type echos: int
+        :returns: numpy array
         """
         sig2 = sig
         for n in range(echos):
@@ -193,6 +206,7 @@ class  Signal_Distort:
         :type highCut: float
         :param set_numtaps: Number of FIR filter taps
         :type set_numtaps: int        sig2 = sig
+        :returns: numpy array with filtered signal
         """
         nyq_rate = self.Fs / 2.0  # The Nyquist rate of the signal.
         cutoff_hz = np.array([lowCut, highCut]) # The cutoff frequency of the filter:
@@ -214,6 +228,7 @@ class  Signal_Distort:
         :type echos: int
         :param distortFactor: Inverse scaling factor for signal in Boltzman filter (large value is small distortion)
         :type distortFactor: float
+        :returns: numpy array with distorted signal
         """
         shift = reverbShift
         tau = reverbTau
@@ -245,6 +260,7 @@ class  Signal_Distort:
         :type specThreshold: float
         :param zmax: Maximum value for color scale
         :type zmax: float
+        :returns: figure handle
         """
         fig = plt.figure()
         fig.set_size_inches(figsize[0],figsize[1])
