@@ -69,17 +69,17 @@ class VocalEphysData:
 		data = op.open_acqdata(dataFile, filemode='r')
 		smplRate = data.get_info(test)['samplerate_ad']
 		spikeTrains = pd.DataFrame([])
-# 		nspk = 0
-		print "WARNING! Maximum number of spikes may limited by first column in DataFrame"
+		nspk = 0
+# 		print "WARNING! Maximum number of spikes may limited by first column in DataFrame"
 		for t in range(len(data.get_data(test)[0])):
 			trace = data.get_data(test)[0][t]
 			spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
-			spikeTrains[str(t)] = pd.Series(spikeTimes)
-# 			spikeTimesS = pd.Series(spikeTimes)
-# 			if spikeTimesS.size > nspk:
-# 				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
-# 				nspk = spikeTimesS.size
-# 			spikeTrains[nlabel] = spikeTimesS
+# 			spikeTrains[str(t)] = pd.Series(spikeTimes)
+			spikeTimesS = pd.Series(spikeTimes)
+			if spikeTimesS.size > nspk:
+				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
+				nspk = spikeTimesS.size
+			spikeTrains[str(t)] = spikeTimesS
 		temptrace = data.get_data(test)[0][0]
 		dur = len(temptrace)/float(smplRate)
 		if showTraces:
@@ -113,17 +113,17 @@ class VocalEphysData:
 			traceKey = str(freq)+'_'+str(attn)
 			numReps = len(data.get_data(test)[tStim])
 			spikeTrains = pd.DataFrame([])
-# 			nspk = 0
-			print "WARNING! Maximum number of spikes may set by first column in DataFrame"
+			nspk = 0
+# 			print "WARNING! Maximum number of spikes may set by first column in DataFrame"
 			for tRep in range(numReps):
 				trace = data.get_data(test)[tStim][tRep]
 				spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
-				spikeTrains[str(tRep)] = pd.Series(spikeTimes)
-# 			spikeTimesS = pd.Series(spikeTimes)
-# 			if spikeTimesS.size > nspk:
-# 				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
-# 				nspk = spikeTimesS.size
-# 			spikeTrains[nlabel] = spikeTimesS
+# 				spikeTrains[str(tRep)] = pd.Series(spikeTimes)
+				spikeTimesS = pd.Series(spikeTimes)
+				if spikeTimesS.size > nspk:
+					spikeTrains = spikeTrains.reindex(spikeTimesS.index)
+					nspk = spikeTimesS.size
+				spikeTrains[str(tRep)] = spikeTimesS
 			autoRasters[traceKey] = spikeTrains
 		return autoRasters
 
@@ -150,17 +150,15 @@ class VocalEphysData:
 			traceKey = 'None_'+str(attn)
 			numReps = len(data.get_data(test)[tStim])
 			spikeTrains = pd.DataFrame([])
-# 			nspk = 0
-			print "WARNING! Maximum number of spikes may set by first column in DataFrame"
+			nspk = 0
 			for tRep in range(numReps):
 				trace = data.get_data(test)[tStim][tRep]
 				spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
-				spikeTrains[str(tRep)] = pd.Series(spikeTimes)
-# 			spikeTimesS = pd.Series(spikeTimes)
-# 			if spikeTimesS.size > nspk:
-# 				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
-# 				nspk = spikeTimesS.size
-# 			spikeTrains[nlabel] = spikeTimesS
+				spikeTimesS = pd.Series(spikeTimes)
+				if spikeTimesS.size > nspk:
+					spikeTrains = spikeTrains.reindex(spikeTimesS.index)
+					nspk = spikeTimesS.size
+				spikeTrains[str(tRep)] = spikeTimesS
 			autoRasters[traceKey] = spikeTrains
 		return autoRasters
 
@@ -182,17 +180,17 @@ class VocalEphysData:
 		smplRate = data.get_info(test)['samplerate_ad']
 		vocName = data.get_info(test)['stim'][0]['components'][1]['filename']
 		spikeTrains = pd.DataFrame([])
-# 			nspk = 0
-		print "WARNING! Maximum number of spikes may set by first column in DataFrame"
+		nspk = 0
+# 		print "WARNING! Maximum number of spikes may set by first column in DataFrame"
 		for t in range(len(data.get_data(test)[0])):
 			trace = data.get_data(test)[0][t]
 			spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
-			spikeTrains[str(t)] = pd.Series(spikeTimes)
-# 			spikeTimesS = pd.Series(spikeTimes)
-# 			if spikeTimesS.size > nspk:
-# 				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
-# 				nspk = spikeTimesS.size
-# 			spikeTrains[nlabel] = spikeTimesS
+# 			spikeTrains[str(t)] = pd.Series(spikeTimes)
+			spikeTimesS = pd.Series(spikeTimes)
+			if spikeTimesS.size > nspk:
+				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
+				nspk = spikeTimesS.size
+			spikeTrains[str(t)] = spikeTimesS
 		temptrace = data.get_data(test)[0][0]
 		dur = len(temptrace)/float(smplRate)
 		if showTraces:
@@ -224,12 +222,12 @@ class VocalEphysData:
 		return vocalSpikesHisto, vocalNames, dur
 
 	def GetFreqsAttns(self, freqTuningHisto):  # Frequency Tuning Curve method
-		""" Helper method for ShowSTH() to organize the frequencies in ascending order separated for each attenuation.        
+		""" Helper method for ShowSTH() to organize the frequencies in ascending order separated for each intensity.        
 		:param freqTuningHisto: dict of pandas.DataFrames with spike data
 		:type freqTuningHisto: str
 		:returns: ordered list of frequencies (DataFrame keys())
 				  numpy array of frequencies
-				  numpy array of attenuations
+				  numpy array of intensities
 		"""
 		freqs = np.array([])    
 		attns = np.array([])    
@@ -255,11 +253,11 @@ class VocalEphysData:
 		return orderedKeys, freqs, attns
 
 	def GetAttns(self, bbnHisto):  # Broadband noise response method
-		""" Helper method for ShowBBNTH() to organize the attenuations in ascending order.        
+		""" Helper method for ShowBBNTH() to organize the intensities in ascending order.        
 		:param bbnHisto: dict of pandas.DataFrames with spike data
 		:type bbnHisto: str
-		:returns: ordered list of attenuations (DataFrame keys())
-				  numpy array of attenuations
+		:returns: ordered list of intensities (DataFrame keys())
+				  numpy array of intensities
 		"""
 		attns = np.array([])    
 		for histoKey in list(bbnHisto):
@@ -410,7 +408,7 @@ class VocalEphysData:
 			if len(figPath)>0: plt.savefig(self.dirPath + figPath + 'STH_' + unit + '.png')
 		return ax
         
-	def ShowBBNTH(self, bbnRaster, unit, duration=250, figPath=[]):  # Attenuation versus time histogram for BBN
+	def ShowBBNTH(self, bbnRaster, unit, duration=250, figPath=[]):  # Intensity versus time histogram for BBN
 		""" Plot a SPL-temporal histogram of spike times versus presentation of the stimulus.        
 		:param freqTuningRaster: pandas.DataFrames with spike data
 		:type freqTuningRaster: pandas.DataFrame
@@ -428,7 +426,7 @@ class VocalEphysData:
 		ax.imshow(bbnHisto[orderedKeys].T, extent=[0,duration,min(attns),max(attns)], cmap = cm.Greys, aspect='auto', interpolation='nearest', origin='lower')
 		ax.set_title(unit + 'BBN')
 		ax.set_xlabel('Time (ms)')
-		ax.set_ylabel('Attenuation (dB)')
+		ax.set_ylabel('Intensity (dB)')
 		plt.tight_layout()   
 		plt.grid(False) 
 		fig.text(0.0, 0.92, unit, fontsize=18)

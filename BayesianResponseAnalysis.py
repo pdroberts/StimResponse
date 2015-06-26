@@ -30,10 +30,10 @@ class BayesianResponseAnalysis:
 		self.expected_spikes_per_bin = np.array([])
    
 	def ParamStats(self, samples ):
-		""" Read file containing metadata on experimental tests to be loaded.        
+		""" Calculates and returns 1st-4th order statistics for data in samples.        
 		:param samples: Array of samples of a parameter following MCMC
 		:type samples: numpy array
-		:returns: numpy array with statistics of samples
+		:returns: numpy array with statistics of samples (mean, std, skew, kurtosis)
 		"""		
 		m = np.mean(samples)
 		s = np.std(samples)
@@ -42,6 +42,17 @@ class BayesianResponseAnalysis:
 		return np.array([m, s, sk, k])
 
 	def BayesSpikeResponse(self, spikeData, duration=250, verbose=False, priors=[] ):
+		""" Runs Bayesian analysis on spikeData to determine whether the response is significant and calculates effect size.        
+		:param spikeData: DataFrame containing the spike time data from a series of stimulus presentations
+		:type spikeData: pandas DataFrame
+		:param duration: Duration of recording window
+		:type duration: float
+		:param verbose: Flag for printing progress and plotting results
+		:type verbose: boolean
+		:param priors: Option to introduce custom priors for tau and tau2. Used for multilevel Bayesian analysis 
+		:type priors: list of numpy arrays
+		:returns: If verbose flag is True, returns handle to figure of response analysis
+		"""		
 		self.BayesResponse4(spikeData, duration, p_bar=verbose, priors=priors)
 		self.ResponseProbability(duration)
 		self.ExpectedSpikesPerBin(spikeData)
@@ -49,6 +60,21 @@ class BayesianResponseAnalysis:
 			return self.PlotResponseEst(self.spike_histo, self.lambda_1_samples, self.lambda_2_samples, self.tau_samples, self.tau2_samples, verbose) 
 
 	def BayesResponse4(self, spikeTrains, duration=250, p_bar=False, priors=[]):  # Bayesian estimation of response with 4 linear parameters 
+		""" Performs 4-parameter, piecewise constant Bayesian analysis on spikeData. 
+			Bayesian model parameters: 
+				 lambda_1 = rate of response
+				 lambda_2 = rate of background activity
+				 tau = onset time of response 
+				 tau2 = duration of response      
+		:param spikeTrains: DataFrame containing the spike time data from a series of stimulus presentations
+		:type spikeTrains: pandas DataFrame
+		:param duration: Duration of recording window
+		:type duration: float
+		:param p_bar: Flag for printing progress
+		:type p_bar: boolean
+		:param priors: Option to introduce custom priors for tau and tau2. Used for multilevel Bayesian analysis 
+		:type priors: list of 2 numpy arrays
+		"""		
 		if len(spikeTrains.shape)>1:
 			spike_histo = np.histogram(spikeTrains.stack(), bins=duration, range=(0,duration)) 
 		else:
@@ -83,9 +109,13 @@ class BayesianResponseAnalysis:
 		self.tau_samples = mcmc.trace('tau')[:]
 		self.tau2_samples = mcmc.trace('tau2')[:]
 		self.spike_histo = spike_data
-#		return spike_data, self.lambda_1_samples, self.lambda_2_samples, self.tau_samples, self.tau2_samples
 
 	def ExpectedSpikesPerBin(self, spike_data):
+		""" Calculates piecewise constant firing rate based on parameter posterior calculated by BayesResponse4().        
+		:param spikeTrains: DataFrame containing the spike time data from a series of stimulus presentations
+		:type spikeTrains: pandas DataFrame
+		:returns: numpy array with statistics of samples (mean, std, skew, kurtosis)
+		"""		
 		spike_data = self.spike_histo
 		lambda_1_samples = self.lambda_1_samples
 		lambda_2_samples = self.lambda_2_samples
@@ -99,17 +129,30 @@ class BayesianResponseAnalysis:
 			ix2 = b < tau_samples + tau2_samples 
 			self.expected_spikes_per_bin[b] = (lambda_1_samples[~(ix&ix2)].sum() 
 											 + lambda_2_samples[ix&ix2].sum())/N
-# 			self.expected_spikes_per_bin = expected_spikes_per_bin
-# 		return expected_spikes_per_bin
 
 	def PlotResponseEst(self, spike_data, lambda_1_samples, lambda_2_samples, tau_samples, tau2_samples, duration=250, verbose=False):
+		""" Plots results of Bayesian analysis on spike_data.        
+		:param spike_data: DataFrame containing the spike time data from a series of stimulus presentations
+		:type spike_data: pandas DataFrame
+		:param lambda_1_samples: Array of samples for the lambda_1 parameter following MCMC
+		:type lambda_1_samples: numpy array
+		:param lambda_2_samples: Array of samples for the lambda_2 parameter following MCMC
+		:type lambda_2_samples: numpy array
+		:param tau_samples: Array of samples for the tau parameter following MCMC
+		:type tau_samples: numpy array
+		:param tau2_samples: Array of samples for the tau2 parameter following MCMC
+		:type tau2_samples: numpy array
+		:param duration: Duration of recording window
+		:type duration: float
+		:param verbose: Flag for printing progress and plotting results
+		:type verbose: boolean
+		:returns: If verbose flag is True, returns handle to figure of response analysis
+		"""		
 		n_spike_data = len(spike_data)
 		fig = plt.figure(figsize=(10,5))
 		lambda_1_stats = self.ParamStats( lambda_1_samples )
 		lambda_2_stats = self.ParamStats( lambda_2_samples )
 		tau_stats = self.ParamStats( tau_samples )
-# 		resProb = self.ResponseProbability()
-# 		if verbose: 
 		print "\n"
 		print 'resProb, resMag, resMag_MLE, effectSize, effectSize_MLE, spontRate, spontRateSTD, resLatency, resLatencySTD, resDuration ='
 		print self.resProb
@@ -125,10 +168,7 @@ class BayesianResponseAnalysis:
 		ax1.plot(range(n_spike_data), self.expected_spikes_per_bin, lw=4, color="#E24A33",
 				 label="expected number of spikes per bin")
 		ax1.set_xlim(0, n_spike_data)
-# 		ax1.set_ylim(0, 55)
-	#     ax1.set_xlabel("Time (ms)")
 		ax1.set_ylabel("Expected spike count")
-	#     ax1.set_title(title)
 		ax1.bar(np.arange(len(spike_data)), spike_data, color="#348ABD", alpha=0.65,
 				label="observed spikes per bin")
 		ax1.legend(loc="upper right");
@@ -152,6 +192,10 @@ class BayesianResponseAnalysis:
 		return fig
 
 	def ResponseProbability(self, binNum=250):	
+		""" Calculates Hellinger distance, responses probability, and effect size based on parameter posterior calculated by BayesResponse4().        
+		:param binNum: Number of bins in spike histogram
+		:type binNum: int
+		"""		
 		lambda_1_samples = self.lambda_1_samples
 		lambda_2_samples = self.lambda_2_samples
 		tau_samples = self.tau_samples
@@ -197,9 +241,19 @@ class BayesianResponseAnalysis:
 		resLatencySTD = tau_stats[1]
 		resDuration = tau2_stats[0]
 		self.resProb = HD, resMag, resMagMLE[0], effectSize, effectSize_MLE[0], spontRate, spontRateSTD, resLatency, resLatencySTD, resDuration
-# 		return  HD, resMag, resMagMLE[0], effectSize, effectSize_MLE[0], spontRate, spontRateSTD, resLatency, resLatencySTD, resDuration
 		
 	def CF_ResponseLoop(self, cfResponseData, paramSet=[], verbose=False, filePath=[]):
+		""" DEPRECIATED - Automates analysis for a dictionary of spike time data for multiple cells.        
+		:param cfResponseData: Dictionary of DataFrames containing the spike time data from series of stimulus presentations
+		:type cfResponseData: dict of pandas DataFrame objects
+		:param paramSet: DataFrame containing stimulus parameters
+		:type paramSet: pandas DataFrame
+		:param verbose: Flag for printing progress and plotting results
+		:type verbose: boolean
+		:param filePath: Path to directory where results will be saved
+		:type filePath: str
+		:returns: pandas DataFrame containing response analysis results
+		"""		
 		cfResponse = {}
 		cfResponseStats = {}
 		for u in cfResponseData.keys():
@@ -219,6 +273,17 @@ class BayesianResponseAnalysis:
 		return cfResponse, cfResponseStats
 
 	def VocalResponseLoop(self, vocalSpikes, duration=250, verbose=False, filePath=[]):
+		""" Automates analysis for a dictionary of spike time data for multiple vocalizations tests.        
+		:param vocalSpikes: Dictionary of DataFrames containing the spike time data from series of stimulus presentations
+		:type vocalSpikes: dict of pandas DataFrame objects
+		:param duration: Duration of recording window
+		:type duration: float
+		:param verbose: Flag for printing progress and plotting results
+		:type verbose: boolean
+		:param filePath: Path to directory where results will be saved
+		:type filePath: str
+		:returns: pandas DataFrame containing response analysis results
+		"""		
 		vocalResponse = {}
 		vocalResponseStats = {}
 		for v in vocalSpikes.keys():
@@ -235,6 +300,17 @@ class BayesianResponseAnalysis:
 		return vocalResponse, vocalResponseStats
             
 	def SpecTempResponseLoop(self, stRaster, duration=250, verbose=False, filePath=[]):
+		""" Automates analysis for a dictionary of spike time data for multiple tone tests.        
+		:param stRaster: Dictionary of DataFrames containing the spike time data from series of stimulus presentations
+		:type stRaster: dict of pandas DataFrame objects
+		:param duration: Duration of recording window
+		:type duration: float
+		:param verbose: Flag for printing progress and plotting results
+		:type verbose: boolean
+		:param filePath: Path to directory where results will be saved
+		:type filePath: str
+		:returns: pandas DataFrame containing response analysis results
+		"""		
 		ved = VocalEphysData.VocalEphysData(self.dirPath)
 		stHistos = ved.Raster2Histo(stRaster)
 		stH_key = stHistos.keys()
@@ -265,6 +341,17 @@ class BayesianResponseAnalysis:
 		return stResponse, stResponseProb
        
 	def BBNResponseLoop(self, stRaster, duration=250, verbose=False, filePath=[]):
+		""" Automates analysis for a dictionary of spike time data for multiple broadband noise tests.        
+		:param stRaster: Dictionary of DataFrames containing the spike time data from series of stimulus presentations
+		:type stRaster: dict of pandas DataFrame objects
+		:param duration: Duration of recording window
+		:type duration: float
+		:param verbose: Flag for printing progress and plotting results
+		:type verbose: boolean
+		:param filePath: Path to directory where results will be saved
+		:type filePath: str
+		:returns: pandas DataFrame containing response analysis results
+		"""		
 		ved = VocalEphysData.VocalEphysData(self.dirPath)
 		stHistos = ved.Raster2Histo(stRaster)
 		stH_key = stHistos.keys()
@@ -287,6 +374,15 @@ class BayesianResponseAnalysis:
 		return stResponseDF, stResponseProbDF
 
 	def BBN_threshold(self, bbnResponseProb, unit, respSignif=0.95):
+		""" Finds BBN response threshold.        
+		:param bbnResponseProb: DataFrames results of Bayesian response analysis for multiple BBN stimulus intensities
+		:type bbnResponseProb: pandas DataFrame 
+		:param unit: Unique identifier for cell
+		:type unit: str
+		:param respSignif: Significance level for threshold determination. 
+		:type respSignif: float
+		:returns: float: Minimal stimulus intensity for significant BBN response
+		"""		
 		measure = 0  # responsProb
 		from scipy.interpolate import interp1d
 		hd = np.array(bbnResponseProb.loc[:,measure].fillna(0))
@@ -298,6 +394,17 @@ class BayesianResponseAnalysis:
 			return min(np.where(responseCurve(np.arange(min(att), max(att)))>respSignif)[0])+min(att)
             
 	def PlotFrequencyTuningCurves(self, stResponseProb, measure, unit=[], filePath=[]):
+		""" Plots measure for multiple frequencies, with a trace fro each tone intensity.        
+		:param stResponseProb: DataFrames results of Bayesian response analysis for multiple tone stimulus intensities
+		:type stResponseProb: pandas DataFrame 
+		:param measure: Bayesian response analysis measure ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
+		:type measure: int [0-9]
+		:param unit: Unique identifier for cell
+		:type unit: str
+		:param filePath: Path to directory where results will be saved
+		:type filePath: str
+		:returns: Handle to plot
+		"""		
 		measureName = ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
 		tuningData = stResponseProb
 		sns.set_palette(sns.color_palette("bright", 8))
@@ -318,6 +425,17 @@ class BayesianResponseAnalysis:
 		return ax
 	
 	def PlotFrequencyResponseArea(self, stResponseProb, measure, unit=[], filePath=[]):
+		""" Plots measure for multiple frequencies and intensities as a contour plot.        
+		:param stResponseProb: DataFrames results of Bayesian response analysis for multiple tone stimulus intensities
+		:type stResponseProb: pandas DataFrame 
+		:param measure: Bayesian response analysis measure ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
+		:type measure: int [0-9]
+		:param unit: Unique identifier for cell
+		:type unit: str
+		:param filePath: Path to directory where results will be saved
+		:type filePath: str
+		:returns: Handle to plot
+		"""		
 		measureName = ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
 		if len(stResponseProb) >1:
 			if measure==0: colorRange = (0,1.1)       #'resProb'
@@ -351,6 +469,17 @@ class BayesianResponseAnalysis:
 		return ax
 		
 	def PlotSTResponseEst(self, stResponseDF, label, duration=250, firstFreq=1):
+		""" Plots response rate estimate for multiple frequencies and intensities as a contour plot.        
+		:param stResponseDF: DataFrames results of Bayesian response analysis for multiple tone stimulus intensities
+		:type stResponseDF: pandas DataFrame 
+		:param label: Figure name
+		:type label: str
+		:param duration: Duration of recording window
+		:type duration: float
+		:param firstFreq: Set to skip first (spurious) entry 
+		:type firstFreq: int
+		:returns: Handle to plot
+		"""		
 		stResponseE = np.array(stResponseDF)
 		freqs = np.array(stResponseDF.index.tolist())[1:].astype(np.float)
 		sns.set_context(rc={"figure.figsize": (8, 4)})
@@ -366,6 +495,17 @@ class BayesianResponseAnalysis:
 		return ax
 
 	def PlotBBNResponseCurve(self, bbnResponseProb, measure, unit=[], filePath=[]):
+		""" Plots measure for multiple frequencies and intensities an a contour plot.        
+		:param stResponseProb: DataFrames results of Bayesian response analysis for multiple tone stimulus intensities
+		:type stResponseProb: pandas DataFrame 
+		:param measure: Bayesian response analysis measure ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
+		:type measure: integer [0-9]
+		:param unit: Unique identifier for cell
+		:type unit: str
+		:param filePath: Path to directory where results will be saved
+		:type filePath: str
+		:returns: Handle to plot
+		"""		
 		measureName = ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
 		tuningData = bbnResponseProb
 		sns.set_palette(sns.color_palette("bright", 8))
@@ -387,6 +527,17 @@ class BayesianResponseAnalysis:
 		return ax
 	
 	def SurfPlotFrequencyTuningCurves(self, stResponseProb, measure, unit=[], firstFreq=1):
+		""" Plots measure for multiple frequencies and intensities as a 3D plot.        
+		:param stResponseProb: DataFrames results of Bayesian response analysis for multiple tone stimulus intensities
+		:type stResponseProb: pandas DataFrame 
+		:param measure: Bayesian response analysis measure ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
+		:type measure: int [0-9]
+		:param unit: Unique identifier for cell
+		:type unit: str
+		:param firstFreq: Set to skip first (spurious) entry 
+		:type firstFreq: int
+		:returns: Handle to plot
+		"""		
 		measureName = ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
 		from mpl_toolkits.mplot3d import Axes3D
 		from matplotlib.ticker import LinearLocator, FormatStrFormatter
@@ -415,6 +566,15 @@ class BayesianResponseAnalysis:
 		return ax
 
 	def GenerateSpikes(self, numSpikes, variance, numCycles=20):    # numSpikes <= numCycles
+		""" Generate random spike timing data for testing significance scale with controlled statistics.        
+		:param numSpikes: Number of spike per response
+		:type numSpikes: int 
+		:param variance: variability of response
+		:type variance: float
+		:param numCycles: Number of presentations
+		:type numCycles: int
+		:returns: pandas DataFrame with spike times for each presentation
+		"""		
 		spikes = []
 		for st in np.random.permutation(range(numCycles)):
 			spiketime = (20.+ np.random.exponential(scale=variance))%250    # conincident spikes: scale=0.1
