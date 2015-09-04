@@ -2,7 +2,6 @@
 # VocalEphysData.py by Patrick D Roberts (2014-2015)
 # Import Batlab & Sparkle electrophysiology data into python using parsing scripts from Sparkle (by Amy Boyle, 2015)
 
-import pymatbridge as pymat
 import numpy as np
 import scipy.stats as stats
 from scipy.interpolate import interp1d
@@ -30,7 +29,7 @@ class VocalEphysData:
 
 	def __del__(self):   # Usage: del <instance>
 		class_name = self.__class__.__name__
-		print class_name, "destroyed"
+# 		print class_name, "destroyed"
       
 	def ReadMouseSheet(self, excelFileName ):
 		""" Read file containing metadata on experimental tests to be loaded.        
@@ -39,7 +38,7 @@ class VocalEphysData:
 		:returns: pandas.DataFrame with meta data
 		"""
 		self.mice = pd.read_excel(self.dirPath + '/' + excelFileName, sheetname=0)
-		self.mice = self.mice.drop(['oscil', 'pairing', 'notes'], axis=1)  # remove unused columns
+		self.mice = self.mice.drop(['notes'], axis=1)  # remove unused columns
 		self.mice['mouse_letter'] = self.mice['mouse_letter'].fillna('')
 		return self.mice
 
@@ -52,7 +51,7 @@ class VocalEphysData:
 		units = self.mice['mouse_num'].values.astype(str) + self.mice.fillna('')['mouse_letter'] + '_' + self.mice['depth'].values.astype(str)		
 		return units
 
-	def GetToneSpikeTrains(self, dataFile, testNumber, spk_threshold=0.3, showTraces=False): # Load a single vocal test without returning stimulation info
+	def GetToneSpikeTrains(self, dataFile, testNumber, spk_threshold=0.3, showNumTraces=[]): # Load a single vocal test without returning stimulation info
 		""" Loads recording of microelectrode signals for a tone presentation protocol,
 			detects the spikes from threshold crossings, and organizes the spikes in a DataFrame.        
 		:param dataFile: path to data file
@@ -61,8 +60,8 @@ class VocalEphysData:
 		:type testNumber: int
 		:param spk_threshold: Threshold for spike detection
 		:type spk_threshold: float
-		:param showTraces: True if showing all microelectrode signal signal traces (slow)
-		:type showTraces: boolean
+		:param showNumTraces: Number of microelectrode signal signal traces to show (slow)
+		:type showNumTraces: int
 		:returns: pandas.DataFrame with spike times, duration of recording window
 		"""
 		test = 'test_'+str(testNumber)
@@ -70,11 +69,9 @@ class VocalEphysData:
 		smplRate = data.get_info(test)['samplerate_ad']
 		spikeTrains = pd.DataFrame([])
 		nspk = 0
-# 		print "WARNING! Maximum number of spikes may limited by first column in DataFrame"
 		for t in range(len(data.get_data(test)[0])):
 			trace = data.get_data(test)[0][t]
 			spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
-# 			spikeTrains[str(t)] = pd.Series(spikeTimes)
 			spikeTimesS = pd.Series(spikeTimes)
 			if spikeTimesS.size > nspk:
 				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
@@ -82,12 +79,57 @@ class VocalEphysData:
 			spikeTrains[str(t)] = spikeTimesS
 		temptrace = data.get_data(test)[0][0]
 		dur = len(temptrace)/float(smplRate)
-		if showTraces:
+		if len(showNumTraces)>0:
+			sns.set_style("white")
+			sns.set_style("ticks")
 			time = np.linspace(0, dur, num=len(temptrace))
-			for t in range(len(data.get_data(test)[0])):
+# 			for t in range(len(data.get_data(test)[0])):
+			for t in showNumTraces:
 				trace = data.get_data(test)[0][t]
 				plt.plot(time, trace)    
+			sns.despine()
+			plt.grid(False)
 		return spikeTrains, dur 
+
+	def GetToneSpikeTrains2(self, dataFile, testNumber, spk_threshold=0.3, showNumTraces=[]): # Load a single vocal test without returning stimulation info
+		""" Loads recording of microelectrode signals for a tone presentation protocol,
+			detects the spikes from threshold crossings, and organizes the spikes in a DataFrame.        
+		:param dataFile: path to data file
+		:type dataFile: str
+		:param testNumber: Test number in the data file with microelectrode signal
+		:type testNumber: int
+		:param spk_threshold: Threshold for spike detection
+		:type spk_threshold: float
+		:param showNumTraces: Number of microelectrode signal signal traces to show (slow)
+		:type showNumTraces: int
+		:returns: pandas.DataFrame with spike times, duration of recording window
+		"""
+		test = 'test_'+str(testNumber)
+		data = op.open_acqdata(dataFile, filemode='r')
+		smplRate = data.get_info(test)['samplerate_ad']
+		spikeTrains = pd.DataFrame([])
+		nspk = 0
+		for t in range(len(data.get_data(test)[0])):
+			trace = data.get_data(test)[0][t]
+			spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
+			spikeTimesS = pd.Series(spikeTimes)
+			if spikeTimesS.size > nspk:
+				spikeTrains = spikeTrains.reindex(spikeTimesS.index)
+				nspk = spikeTimesS.size
+			spikeTrains[str(t)] = spikeTimesS
+		temptrace = data.get_data(test)[0][0]
+		dur = len(temptrace)/float(smplRate)
+		if len(showNumTraces)>0:
+			sns.set_style("white")
+			sns.set_style("ticks")
+			time = np.linspace(0, dur, num=len(temptrace))
+# 			for t in range(len(data.get_data(test)[0])):
+			for t in showNumTraces:
+				trace = data.get_data(test)[0][t]
+				plt.plot(time, trace)    
+			sns.despine()
+			plt.grid(False)
+		return spikeTrains, dur, data 
 
 	def GetToneAutoTestData(self, dataFile, testNumber, spk_threshold=0.3):  # Frequency Tuning Curve method
 		""" Loads recording of microelectrode signals for multiple tone presentations protocol,
@@ -114,11 +156,9 @@ class VocalEphysData:
 			numReps = len(data.get_data(test)[tStim])
 			spikeTrains = pd.DataFrame([])
 			nspk = 0
-# 			print "WARNING! Maximum number of spikes may set by first column in DataFrame"
 			for tRep in range(numReps):
 				trace = data.get_data(test)[tStim][tRep]
 				spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
-# 				spikeTrains[str(tRep)] = pd.Series(spikeTimes)
 				spikeTimesS = pd.Series(spikeTimes)
 				if spikeTimesS.size > nspk:
 					spikeTrains = spikeTrains.reindex(spikeTimesS.index)
@@ -126,6 +166,42 @@ class VocalEphysData:
 				spikeTrains[str(tRep)] = spikeTimesS
 			autoRasters[traceKey] = spikeTrains
 		return autoRasters
+
+	def GetToneAutoTestData2(self, dataFile, testNumber, spk_threshold=0.3):  # Frequency Tuning Curve method
+		""" Loads recording of microelectrode signals for multiple tone presentations protocol,
+			detects the spikes from threshold crossings, and organizes the spikes in a DataFrame.        
+		:param dataFile: path to data file
+		:type dataFile: str
+		:param testNumber: Test number in the data file with microelectrode signal
+		:type testNumber: int
+		:param spk_threshold: Threshold for spike detection
+		:type spk_threshold: float
+		:returns: Dict of pandas.DataFrames with spike times, duration of recording window
+		"""
+		test = 'test_'+str(testNumber)
+		data = op.open_acqdata(dataFile, filemode='r')
+		smplRate = data.get_info(test)['samplerate_ad']
+		temptrace = data.get_data(test)[0][0]
+		duration = int(1000*len(temptrace)/float(smplRate))
+		autoRasters = {}
+		numStims = len(data.get_info(test)['stim'])
+		for tStim in range(1,numStims):
+			freq = int(data.get_info(test)['stim'][tStim]['components'][1]['frequency'])
+			attn = int(data.get_info(test)['stim'][tStim]['components'][1]['intensity'])
+			traceKey = str(freq)+'_'+str(attn)
+			numReps = len(data.get_data(test)[tStim])
+			spikeTrains = pd.DataFrame([])
+			nspk = 0
+			for tRep in range(numReps):
+				trace = data.get_data(test)[tStim][tRep]
+				spikeTimes = 1000*np.array(spst.spike_times(trace, spk_threshold, smplRate))
+				spikeTimesS = pd.Series(spikeTimes)
+				if spikeTimesS.size > nspk:
+					spikeTrains = spikeTrains.reindex(spikeTimesS.index)
+					nspk = spikeTimesS.size
+				spikeTrains[str(tRep)] = spikeTimesS
+			autoRasters[traceKey] = spikeTrains
+		return autoRasters, duration, data
 
 	def GetBBNAutoTestData(self, dataFile, testNumber, spk_threshold=0.3):  # Frequency Tuning Curve method
 		""" Loads recording of microelectrode signals for multiple broadband noise presentations protocol,
@@ -201,7 +277,7 @@ class VocalEphysData:
 		return spikeTrains, vocName, dur 
 
 
-	def GetVocalResponses(self, dataFile, firstVocal, lastVocal, spk_threshold=0.3):
+	def GetVocalResponses(self, dataFile, firstVocal, lastVocal, spk_threshold=0.3, vocalList=[]):
 		""" Wrapper for GetVocalSpikeTrains() to load a range of vocalization tests.        
 		:param dataFile: path to data file
 		:type dataFile: str
@@ -211,15 +287,35 @@ class VocalEphysData:
 		:type lastVocal: int
 		:param spk_threshold: Threshold for spike detection
 		:type spk_threshold: float
+		:param vocalList: List of vocalizations to analyze (subset of stimuli between firstVocal and lastVocal)
+		:type vocalList: str list
 		:returns: pandas.DataFrame with spike times, duration of recording window
 		"""
 		vocalSpikesDict = {}
 		for vTest in range(int(firstVocal), int(lastVocal)+1):
-			spikeTrains, vocalName, dur = self.GetVocalSpikeTrains(dataFile, vTest, spk_threshold=spk_threshold)
-			vocalSpikesDict[str(vocalName)] = spikeTrains.stack().reset_index()[0]  # Save only spike timing column for histogram.
+			if len(vocalList)>0:
+				if self.GetVocalName(dataFile, vTest) in vocalList:
+					spikeTrains, vocalName, dur = self.GetVocalSpikeTrains(dataFile, vTest, spk_threshold=spk_threshold)
+					vocalSpikesDict[str(vocalName)] = spikeTrains.stack().reset_index()[0]  # Save only spike timing column for histogram.
+			else:
+				spikeTrains, vocalName, dur = self.GetVocalSpikeTrains(dataFile, vTest, spk_threshold=spk_threshold)
+				vocalSpikesDict[str(vocalName)] = spikeTrains.stack().reset_index()[0]  # Save only spike timing column for histogram.
 		vocalSpikesHisto = pd.DataFrame(vocalSpikesDict)
 		vocalNames = vocalSpikesHisto.keys() 
 		return vocalSpikesHisto, vocalNames, dur
+
+	def GetVocalName(self, dataFile, testNumber): 
+		""" Gets the name of the vocalization for a test number in the data file.        
+		:param dataFile: path to data file
+		:type dataFile: str
+		:param testNumber: Test number in the data file with microelectrode signal
+		:type testNumber: int
+		:returns: str: Name of vocalization stimulus
+		"""
+		test = 'test_'+str(testNumber)
+		data = op.open_acqdata(dataFile, filemode='r')
+		vocName = data.get_info(test)['stim'][0]['components'][1]['filename']
+		return vocName
 
 	def GetFreqsAttns(self, freqTuningHisto):  # Frequency Tuning Curve method
 		""" Helper method for ShowSTH() to organize the frequencies in ascending order separated for each intensity.        
@@ -267,7 +363,7 @@ class VocalEphysData:
 		attns = np.unique(attns)        
 		orderedKeys = []
 		for attn in attns:
-			key = 'None_'+str(int(attn))
+			key = 'None_'+str(int(attn)).zfill(2)
 			orderedKeys.append(key)
 		return orderedKeys, attns
 
@@ -321,8 +417,9 @@ class VocalEphysData:
 				trns = np.hstack([trns, (trnNum+1)*np.ones(len(spkTrn))])
 				spks = np.hstack([spks, spkTrn])
 			#--- Raster plot of spikes ---
-			plt.figure(figsize=(8,2))
 			sns.set_style("white")
+			sns.set_style("ticks")
+			plt.figure(figsize=(8,2))
 			sns.despine()
 			plt.grid(False)
 			ax = plt.scatter(spks, trns, marker='s', s=5, color='k')
@@ -390,7 +487,7 @@ class VocalEphysData:
 		if len(attns)>1:
 			for p in range(len(attns)):
 				ax[p].imshow(freqTuningHisto[orderedKeys[p]].T, extent=[0,duration,min(freqs),max(freqs)], cmap = cm.Greys, aspect='auto', interpolation='nearest', origin='lower')
-				ax[p].set_title('Attn '+str(int(attns[p]))+'dB', fontsize=14)
+				ax[p].set_title(str(int(attns[p]))+'dB', fontsize=14)
 				ax[p].set_xlabel('Time (ms)', size=14)
 			ax[0].set_ylabel('Frequency (kHz)', size=14)
 			plt.tick_params(axis='both', which='major', labelsize=14)
@@ -399,7 +496,7 @@ class VocalEphysData:
 			if len(figPath)>0: plt.savefig(self.dirPath + figPath + 'STH_' + unit + '.png')
 		else:
 			ax.imshow(freqTuningHisto[orderedKeys[0]].T, extent=[0,duration,min(freqs),max(freqs)], cmap = cm.Greys, aspect='auto', interpolation='nearest', origin='lower')
-			ax.set_title('Attn '+str(int(attns))+'dB', fontsize=14)
+			ax.set_title('SPL '+str(int(attns))+'dB', fontsize=14)
 			ax.set_xlabel('Time (ms)', size=14)
 			ax.set_ylabel('Frequency (kHz)', size=14)
 			plt.tick_params(axis='both', which='major', labelsize=14)
@@ -408,7 +505,7 @@ class VocalEphysData:
 			if len(figPath)>0: plt.savefig(self.dirPath + figPath + 'STH_' + unit + '.png')
 		return ax
         
-	def ShowBBNTH(self, bbnRaster, unit, duration=250, figPath=[]):  # Intensity versus time histogram for BBN
+	def ShowBBNTH(self, bbnRaster, unit, duration=250, testName='BBN', figPath=[]):  # Intensity versus time histogram for BBN
 		""" Plot a SPL-temporal histogram of spike times versus presentation of the stimulus.        
 		:param freqTuningRaster: pandas.DataFrames with spike data
 		:type freqTuningRaster: pandas.DataFrame
@@ -424,7 +521,7 @@ class VocalEphysData:
 		fig, ax = plt.subplots(1,1, figsize=(5,3))
 		orderedKeys, attns = self.GetAttns(bbnHisto)
 		ax.imshow(bbnHisto[orderedKeys].T, extent=[0,duration,min(attns),max(attns)], cmap = cm.Greys, aspect='auto', interpolation='nearest', origin='lower')
-		ax.set_title(unit + 'BBN')
+		ax.set_title(unit + testName)
 		ax.set_xlabel('Time (ms)')
 		ax.set_ylabel('Intensity (dB)')
 		plt.tight_layout()   
@@ -432,3 +529,112 @@ class VocalEphysData:
 		fig.text(0.0, 0.92, unit, fontsize=18)
 		if len(figPath)>0: plt.savefig(self.dirPath + figPath + 'ATH_' + unit + '.png')
 		return ax
+
+	def SortSpikes_CS_SS(self, spikeTrains_all ):
+		csDuration = 10
+		spikeTrains_cs = spikeTrains_all.copy()
+		spikeTrains_ss = spikeTrains_all.copy()
+		for p in spikeTrains_all.keys():
+			isi = spikeTrains_all[p].values - np.roll(spikeTrains_all[p].values, 1)
+			csTest = np.roll(isi<=10, -1)
+			ssTest = ~(csTest | np.roll(csTest,1))
+			spikeTrains_ss[p] = spikeTrains_all[p][ssTest]
+			spikeTrains_cs[p] = spikeTrains_all[p][csTest]
+		return spikeTrains_ss, spikeTrains_cs
+
+	def PlotRaster_2SpikeTypes(self, spikeTrains, spikeTrains2, title='', duration=250, figPath=[]):
+		""" Plot a histogram of spike times of the stimulus for 2 spike types.
+		    Made for DCN cartwheel cells with both simple and complex spikes.        
+		:param spikeTrains: pandas.DataFrames with spike data
+		:type spikeTrains: pandas.DataFrame
+		:param spikeTrains2: pandas.DataFrames with spike data
+		:type spikeTrains2: pandas.DataFrame
+		:param title: Title of plot
+		:type title: str
+		:param duration: duration of recording window
+		:type duration: float
+		:param duration: Path to directory where figure is to be saved
+		:type duration: str
+		:returns: Handle for the figure axis
+		"""
+		if len(spikeTrains.shape)>1 and len(spikeTrains2.shape)>1:
+			spks = np.array([])
+			trns = np.array([])
+			for trnNum in range(len(spikeTrains.columns)):
+				spkTrn = np.array(spikeTrains.iloc[:,trnNum].dropna())
+				trns = np.hstack([trns, (trnNum+1)*np.ones(len(spkTrn))])
+				spks = np.hstack([spks, spkTrn])
+			spks2 = np.array([])
+			trns2 = np.array([])
+			for trnNum in range(len(spikeTrains2.columns)):
+				spkTrn = np.array(spikeTrains2.iloc[:,trnNum].dropna())
+				trns2 = np.hstack([trns2, (trnNum+1)*np.ones(len(spkTrn))])
+				spks2 = np.hstack([spks2, spkTrn])
+			#--- Raster plot of spikes ---
+			sns.set_style("white")
+			sns.set_style("ticks")
+			plt.figure(figsize=(8,2))
+			sns.despine()
+			plt.grid(False)
+			ax = plt.scatter(spks, trns, marker='s', s=5, color='k')
+			plt.scatter(spks2, trns2, marker='s', s=5, color='r')
+			plt.ylim(len(spikeTrains.columns)+0.5, 0.5)
+			plt.xlim(0, duration)
+			plt.xlabel('Time (ms)')
+			plt.ylabel('Presentation cycle')
+			plt.title(title)
+			plt.tick_params(axis='both', which='major', labelsize=14)  
+			if len(figPath)>0: plt.savefig(self.dirPath + figPath + 'raster_' + unit + '.png')
+		else: print 'Only spike timing information provided, requires presentation numbers for raster.'
+		return ax
+
+	def PlotHisto_2SpikeTypes(self, spikeTrains, spikeTrains2, title='', duration=250, ymax=0, figPath=[]):
+		""" Plot a histogram of spike times of the stimulus for 2 spike types.
+		    Made for DCN cartwheel cells with both simple and complex spikes.        
+		:param spikeTrains: pandas.DataFrames with spike data
+		:type spikeTrains: pandas.DataFrame
+		:param spikeTrains2: pandas.DataFrames with spike data
+		:type spikeTrains2: pandas.DataFrame
+		:param title: Title of plot
+		:type title: str
+		:param duration: duration of recording window
+		:type duration: float
+		:param duration: Path to directory where figure is to be saved
+		:type duration: str
+		:returns: Handle for the figure axis
+		"""
+		if len(spikeTrains.shape)>1 and len(spikeTrains2.shape)>1:
+			spks = np.array([])
+			trns = np.array([])
+			for trnNum in range(len(spikeTrains.columns)):
+				spkTrn = np.array(spikeTrains.iloc[:,trnNum].dropna())
+				trns = np.hstack([trns, (trnNum+1)*np.ones(len(spkTrn))])
+				spks = np.hstack([spks, spkTrn])
+			spikeTimes = spikeTrains.stack()
+			spks2 = np.array([])
+			trns2 = np.array([])
+			for trnNum in range(len(spikeTrains2.columns)):
+				spkTrn = np.array(spikeTrains2.iloc[:,trnNum].dropna())
+				trns2 = np.hstack([trns2, (trnNum+1)*np.ones(len(spkTrn))])
+				spks2 = np.hstack([spks2, spkTrn])
+			spikeTimes2 = spikeTrains2.stack()
+		else: 
+			spikeTimes = spikeTrains.dropna()
+			spikeTimes2 = spikeTrains2.dropna()
+		#--- Histogram of spike times (2 ms bins)---
+		sns.set_style("white")
+		sns.set_style("ticks")
+		plt.figure(figsize=(8,3))
+		axHist = spikeTimes.hist(bins=int(duration/2), range=(0,duration))
+		next(axHist._get_lines.color_cycle)
+		spikeTimes2.hist(bins=int(duration/2), range=(0,duration))
+		sns.despine()
+		plt.xlim(0, duration)
+		if ymax != 0: plt.ylim(0, ymax)
+		plt.xlabel('Time (ms)', size=14)
+		plt.ylabel('Number of spikes', size=14)
+		plt.title(title)
+		plt.tick_params(axis='both', which='major', labelsize=14) 
+		plt.grid(False)
+		if len(figPath)>0: plt.savefig(self.dirPath + figPath + 'histo_' + title + '.png')
+		return axHist

@@ -373,7 +373,7 @@ class BayesianResponseAnalysis:
 # 			cPickle.dump(stResponseProbDF, open(self.dirPath + filePath, 'wb'))
 		return stResponseDF, stResponseProbDF
 
-	def BBN_threshold(self, bbnResponseProb, unit, respSignif=0.95):
+	def BBN_threshold(self, bbnResponseProb, unit, respSignif=0.95, attn=False):
 		""" Finds BBN response threshold.        
 		:param bbnResponseProb: DataFrames results of Bayesian response analysis for multiple BBN stimulus intensities
 		:type bbnResponseProb: pandas DataFrame 
@@ -387,14 +387,17 @@ class BayesianResponseAnalysis:
 		from scipy.interpolate import interp1d
 		hd = np.array(bbnResponseProb.loc[:,measure].fillna(0))
 		att = np.array(bbnResponseProb.loc[:,measure].fillna(0).index).astype(np.float)
+		if attn: hd = hd[::-1]   # flip the array if the units are attenuation
 		responseCurve = interp1d(att, hd)
 		if min(hd) == max(hd):
 			return max(att)
+		elif max(responseCurve(np.arange(min(att), max(att))))<respSignif:
+			return max(att)
 		else:
-			return min(np.where(responseCurve(np.arange(min(att), max(att)))>respSignif)[0])+min(att)
+			return min(np.where(responseCurve(np.arange(min(att), max(att)))>=respSignif)[0])+min(att)
             
 	def PlotFrequencyTuningCurves(self, stResponseProb, measure, unit=[], filePath=[]):
-		""" Plots measure for multiple frequencies, with a trace fro each tone intensity.        
+		""" Plots measure for multiple frequencies, with a trace for each tone intensity.        
 		:param stResponseProb: DataFrames results of Bayesian response analysis for multiple tone stimulus intensities
 		:type stResponseProb: pandas DataFrame 
 		:param measure: Bayesian response analysis measure ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
@@ -407,12 +410,13 @@ class BayesianResponseAnalysis:
 		"""		
 		measureName = ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
 		tuningData = stResponseProb
-		sns.set_palette(sns.color_palette("bright", 8))
+# 		sns.set_palette(sns.color_palette("bright", 8))
 		attn = stResponseProb.keys()[0]
 		firstFreq = stResponseProb[attn].index.tolist()[1]
+		sns.set_style("white")
+		sns.set_style("ticks")
 		ax = stResponseProb.loc[:,firstFreq:,measure].fillna(0).plot(figsize=(6,4))
 		sns.despine()
-		sns.set_style("white")
 		plt.grid(False)
 		plt.title(unit, fontsize=14)
 		plt.xlabel('Frequency (kHz)', fontsize=12)
@@ -459,13 +463,13 @@ class BayesianResponseAnalysis:
 			plt.colorbar()
 			plt.title(unit +', '+ measureName[measure], fontsize=14)
 			plt.xlabel('Frequency (kHz)', fontsize=14)
-			plt.ylabel('SPL (dB)', fontsize=14)
-# 			plt.gca().invert_yaxis()
+			plt.ylabel('Attn (dB)', fontsize=14)
+			plt.gca().invert_yaxis()
 			if len(filePath)>0:
 				plt.savefig(self.dirPath + filePath + 'freqResponse_'+measureName[measure]+'_'+unit+'.png')        
 				plt.close()
 			else: plt.show()
-		else: self.PlotFrequencyTuningCurves(stResponseProb, unit, measure, save)
+		else: ax = self.PlotFrequencyTuningCurves(stResponseProb, measure, unit, filePath=filePath)
 		return ax
 		
 	def PlotSTResponseEst(self, stResponseDF, label, duration=250, firstFreq=1):
@@ -494,7 +498,7 @@ class BayesianResponseAnalysis:
 		plt.colorbar()
 		return ax
 
-	def PlotBBNResponseCurve(self, bbnResponseProb, measure, unit=[], filePath=[]):
+	def PlotBBNResponseCurve(self, bbnResponseProb, measure, unit=[], filePath=[], attn=False):
 		""" Plots measure for multiple frequencies and intensities an a contour plot.        
 		:param stResponseProb: DataFrames results of Bayesian response analysis for multiple tone stimulus intensities
 		:type stResponseProb: pandas DataFrame 
@@ -509,11 +513,12 @@ class BayesianResponseAnalysis:
 		measureName = ['resProb', 'vocalResMag', 'vocalResMag_MLE', 'effectSize', 'effectSize_MLE', 'spontRate', 'spontRateSTD', 'responseLatency', 'responseLatencySTD', 'responseDuration']
 		tuningData = bbnResponseProb
 		sns.set_palette(sns.color_palette("bright", 8))
-		attn = bbnResponseProb.keys()[0]
 		sns.set_context(rc={"figure.figsize": (5, 3)})
-		ax = bbnResponseProb.loc[:,measure].fillna(0).plot(figsize=(6,4))
-		sns.despine()
 		sns.set_style("white")
+		sns.set_style("ticks")
+		if attn: ax = bbnResponseProb.loc[::-1,measure].fillna(0).plot(figsize=(6,4))
+		else: ax = bbnResponseProb.loc[:,measure].fillna(0).plot(figsize=(6,4))
+		sns.despine()
 		plt.grid(False)
 		plt.title(unit, fontsize=14)
 		plt.xlabel('SPL (dB)', fontsize=12)
@@ -521,7 +526,7 @@ class BayesianResponseAnalysis:
 		plt.ylim(0.5,1.0)
 # 		plt.gca().invert_xaxis()
 		if len(filePath)>0:
-			plt.savefig(dirPath + '/TuningCurves/'+ 'freqTuning_'+measureName[measure]+'_'+unit+'.png')        
+			plt.savefig(self.dirPath + filePath + 'bbn_'+measureName[measure]+'_'+unit+'.pdf')        
 			plt.close()
 		else: plt.show()
 		return ax
