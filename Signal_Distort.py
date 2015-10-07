@@ -216,7 +216,7 @@ class  Signal_Distort:
         # Use lfilter to filter the signal with the FIR filter
         return lfilter(fir_coeff, 1.0, signal)
     
-    def DistortionProducts(self, signal, reverbShift=1., reverbTau=1., echos=5, distortFactor=4.):
+    def DistortionProducts(self, signal, reverbShift=1., reverbTau=1., echos=5, distortFactor=4., bandpass=True):
         """ Generate distortions to reverberated signal.
         :param signal: Signal
         :type signal: numpy arrray
@@ -241,7 +241,9 @@ class  Signal_Distort:
 
         sigReverbD = self.boltz(sigReverb/distortFactor)
         sigReverbDn = (sigReverbD - np.mean(sigReverbD[:100]))/np.max(np.abs(sigReverbD - np.mean(sigReverbD[:100])))
-        sigReverbD_F = self.BandPassFilter(sigReverbDn, set_numtaps=501)
+        if bandpass: 
+        	sigReverbD_F = self.BandPassFilter(sigReverbDn, set_numtaps=501)
+        else: sigReverbD_F = sigReverbDn
 
         resampleFactor = 4
         sigReverbD_F = decimate(sigReverbD_F, resampleFactor)

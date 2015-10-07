@@ -269,6 +269,11 @@ def Plot_PSTH_DrugEffects(dataPath, mouse, tests, plotHisto=False, plotRaster=Fa
 		mouseName = mouse['Mouse ID'] + '_' + str(int(mouse['Depth']))
 		date = str(mouse['File'])+'-'
 		print 'unit:', mouseName, 'tests:', testNums
+		# -- Get the data file extension (fileExt) to pass to GetPharmaTimes()
+		dataMouse = mouse['Mouse ID'] + os.sep
+		dataFileName = str(mouse['File'])
+		dataFile = glob(dataPath + dataMouse + dataFileName + '*')[0]   # Get the absolute path to the file
+		fileExt = dataFile.split('.')[-1]
 		timeStamp = []
 		spontAve = []
 		spontSTD = []
@@ -299,7 +304,7 @@ def Plot_PSTH_DrugEffects(dataPath, mouse, tests, plotHisto=False, plotRaster=Fa
 				if len(figPath)>0: 
 					plt.savefig(dataPath + figPath + 'histo_' + mouseName + '_' +str(t)+ '_' + mouse['Drug Type'] + '.png')
 		# --- Plot the time dependent change in rates --- 
-		timeOn, timeOff = GetPharmaTimes(mouse)
+		timeOn, timeOff = GetPharmaTimes(mouse, data=data, fileExt=fileExt)
 		rateEffects = pd.DataFrame({'Spontaneous': spontAve, 'spontSTD': spontSTD, \
 									'Response': responseAve, 'responseSTD': responseSTD}, \
 								   index=pd.to_datetime(timeStamp))   
@@ -316,9 +321,9 @@ def Plot_PSTH_DrugEffects(dataPath, mouse, tests, plotHisto=False, plotRaster=Fa
 			plt.tick_params(axis='both', which='major', labelsize=14)
 			ax = plt.gca()
 			lineY = ax.get_ylim()[1] - 0.01*ax.get_ylim()[1]
-			plt.plot((timeOn, timeOff), (lineY, lineY), 'k-',linewidth=4)
-			if timeOff==timeOn:
-				plt.plot((timeOn, timeOff), (lineY, lineY), 'ko',linewidth=4)
+			if timeOff==timeOn: timeOff = rateEffects.index[-1]
+			if timeOn != 0: 
+				plt.plot((timeOn, timeOff), (lineY, lineY), 'k-',linewidth=4)
 			for i, n in enumerate(testNums):
 				plt.annotate(str(n), (rateEffects.index[i],rateEffects['Spontaneous'][i]))
 			if len(figPath)>0: 
@@ -328,7 +333,7 @@ def Plot_PSTH_DrugEffects(dataPath, mouse, tests, plotHisto=False, plotRaster=Fa
 		print 'Problem noted in spreadsheet:', mouse['Mouse ID']
 		return []
 
-def GetPharmaTimes(mouse):
+def GetPharmaTimes(mouse, data=[], fileExt='hdf5'):
 	""" Plot a series of stimulus response rates (with STD error bars) during drug injection trials.        
 	:param mouse: Row of pandas.DataFrame from spreadsheet with experimental data, mouse = mice.ix[unitNum]
 	:type mouse: pandas.core.series.Series
@@ -338,6 +343,44 @@ def GetPharmaTimes(mouse):
 	date = str(mouse['File'])+'-'
 	timeOn = mouse['Drugs On Time']
 	timeOff = mouse['Drugs Off Time']
+	if timeOn == 0:
+		# --- Get the segment/test combo ---
+		if mouse['Timepoints'] == 0:
+			testNum = int(str(mouse['Drug PSTH Tone']).split(',')[0])  # Get first tone test number (assume 5 min after drug start)
+		else:
+			testNum = int(str(mouse['Timepoints']).split(',')[0])  # Get first tone test number (assume 5 min after drug start)
+		if testNum == 0:
+			timeOn = 0
+			timeOff = 0
+			return timeOn, timeOff
+		if fileExt == 'pst':
+			startTime = data.get_info('test_'+str(testNum))['start'][11:-6]
+		else:
+			for k in data.hdf5.keys():
+				if  'test_'+str(testNum) in data.hdf5[k].keys():
+					seg = k
+					seg_test = k+'/'+'test_'+str(testNum)
+			# Get the start time of the test
+			startTime = data.get_info(seg_test)['start']
+		timeOn = pd.to_datetime(date + startTime.split(':')[0] +':'+ startTime.split(':')[1]) - pd.Timedelta(minutes=5)
+	if timeOff == 0:
+		# --- Get the segment/test combo ---
+		if mouse['Washout Timepoints'] == 0:
+			testNum = int(str(mouse['Washout PSTH Tone']).split(',')[0])  # Get first tone test number (assume 5 min after drug stop)
+		else:
+			testNum = int(str(mouse['Washout Timepoints']).split(',')[0])  # Get first tone test number (assume 5 min after drug stop)
+		if testNum != 0:
+			if fileExt == 'pst':
+				startTime = data.get_info('test_'+str(testNum))['start'][11:-6]
+			else:
+				for k in data.hdf5.keys():
+					if  'test_'+str(testNum) in data.hdf5[k].keys():
+						seg = k
+						seg_test = k+'/'+'test_'+str(testNum)
+				# Get the start time of the test
+				startTime = data.get_info(seg_test)['start']
+			timeOff = pd.to_datetime(date + startTime.split(':')[0] +':'+ startTime.split(':')[1]) - pd.Timedelta(minutes=5)
+		
 	if isinstance(timeOn, unicode):
 		if  timeOn[-2:]=='am':
 			timeOn = pd.to_datetime(date+timeOn[:-2])
